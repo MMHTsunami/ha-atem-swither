@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to an ATEM switcher",
+        "description": "Enter the switcher's IP address.",
+        "data": {
+          "host": "IP address"
+        }
+      }
+    },
+    "error": {
+      "invalid_host": "Enter a valid IP address.",
+      "cannot_connect": "Could not complete the ATEM connection handshake."
+    },
+    "abort": {
+      "already_configured": "This switcher is already configured."
+    }
+  }
+}

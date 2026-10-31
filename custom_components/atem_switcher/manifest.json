@@ -1,0 +1,10 @@
+{
+  "domain": "atem_switcher",
+  "name": "Blackmagic ATEM Switcher",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://docs.openswitcher.org/udptransport.html",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0"
+}
