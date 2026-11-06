@@ -11,7 +11,13 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import (
+    AUX_OUTPUT_SOURCE_ID_BASE,
+    DOMAIN,
+    ME_OUTPUT_SOURCE_ID_BASE,
+    PREVIEW_OUTPUT_SOURCE_IDS,
+    PROGRAM_OUTPUT_SOURCE_IDS,
+)
 from .coordinator import AtemConnectionError, AtemCoordinator
 
 
@@ -34,6 +40,12 @@ async def async_setup_entry(
                 f"Program{suffix}",
                 lambda c, me=me: c.program.get(me),
                 lambda c, src, me=me: c.set_program(me, src),
+                (
+                    *PROGRAM_OUTPUT_SOURCE_IDS,
+                    ME_OUTPUT_SOURCE_ID_BASE,
+                )
+                if me == 0
+                else (ME_OUTPUT_SOURCE_ID_BASE + 10 * me,),
             )
         )
         entities.append(
@@ -44,6 +56,12 @@ async def async_setup_entry(
                 f"Preview{suffix}",
                 lambda c, me=me: c.preview.get(me),
                 lambda c, src, me=me: c.set_preview(me, src),
+                (
+                    *PREVIEW_OUTPUT_SOURCE_IDS,
+                    ME_OUTPUT_SOURCE_ID_BASE + 1,
+                )
+                if me == 0
+                else (ME_OUTPUT_SOURCE_ID_BASE + 10 * me + 1,),
             )
         )
 
@@ -56,6 +74,7 @@ async def async_setup_entry(
                 f"Aux {aux + 1}",
                 lambda c, aux=aux: c.aux.get(aux),
                 lambda c, src, aux=aux: c.set_aux(aux, src),
+                (AUX_OUTPUT_SOURCE_ID_BASE + aux,),
             )
         )
 
@@ -75,24 +94,35 @@ class AtemSourceSelect(CoordinatorEntity[AtemCoordinator], SelectEntity):
         name: str,
         getter: Callable[[AtemCoordinator], int | None],
         setter: Callable[[AtemCoordinator, int], None],
+        output_source_ids: tuple[int, ...],
     ) -> None:
         super().__init__(coordinator)
         self._getter = getter
         self._setter = setter
+        self._output_source_ids = output_source_ids
         self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_device_info = coordinator.device_info(entry.entry_id)
 
-    def _labels(self) -> dict[int, str]:
-        """Map source ids to unique display labels."""
-        labels: dict[int, str] = {}
+    @property
+    def name(self) -> str:
+        """Return the ATEM long name for this output when available."""
+        for source in self._output_source_ids:
+            output_name = self.coordinator.output_names.get(source)
+            if output_name:
+                return output_name
+        return self._attr_name
+
+    def _source_names(self) -> dict[int, str]:
+        """Map source ids to unique ATEM long names."""
+        source_names: dict[int, str] = {}
         seen: set[str] = set()
-        for source, label in sorted(self.coordinator.inputs.items()):
-            if label in seen:
-                label = f"{label} ({source})"
-            seen.add(label)
-            labels[source] = label
-        return labels
+        for source, source_name in sorted(self.coordinator.input_names.items()):
+            if source_name in seen:
+                source_name = f"{source_name} ({source})"
+            seen.add(source_name)
+            source_names[source] = source_name
+        return source_names
 
     @property
     def available(self) -> bool:
@@ -102,18 +132,18 @@ class AtemSourceSelect(CoordinatorEntity[AtemCoordinator], SelectEntity):
     @property
     def options(self) -> list[str]:
         """Return the available video sources."""
-        return list(self._labels().values())
+        return list(self._source_names().values())
 
     @property
     def current_option(self) -> str | None:
         """Return the currently selected source."""
         source = self._getter(self.coordinator)
-        return None if source is None else self._labels().get(source)
+        return None if source is None else self._source_names().get(source)
 
     async def async_select_option(self, option: str) -> None:
         """Route the chosen source."""
-        for source, label in self._labels().items():
-            if label == option:
+        for source, source_name in self._source_names().items():
+            if source_name == option:
                 try:
                     self._setter(self.coordinator, source)
                 except AtemConnectionError as err:

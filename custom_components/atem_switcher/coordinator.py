@@ -244,7 +244,8 @@ class AtemCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.firmware_version: str | None = None
         self.me_count = 1
         self.aux_count = 0
-        self.inputs: dict[int, str] = {}
+        self.input_names: dict[int, str] = {}
+        self.output_names: dict[int, str] = {}
         self.program: dict[int, int] = {}
         self.preview: dict[int, int] = {}
         self.aux: dict[int, int] = {}
@@ -307,7 +308,13 @@ class AtemCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.aux_count = data[3] if len(data) > 3 else 0
         elif name == "InPr":
             source = int.from_bytes(data[0:2], "big")
-            self.inputs[source] = _decode_text(data[2:22]) or f"Input {source}"
+            long_name = _decode_text(data[2:22])
+            self.input_names[source] = long_name or f"Input {source}"
+            port_type = data[32] if len(data) > 32 else None
+            if port_type in (128, 129, 131) and long_name:
+                self.output_names[source] = long_name
+            else:
+                self.output_names.pop(source, None)
         elif name == "PrgI":
             self.program[data[0]] = int.from_bytes(data[2:4], "big")
         elif name == "PrvI":
